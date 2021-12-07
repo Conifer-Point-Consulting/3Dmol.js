@@ -2,6 +2,14 @@
 //This contains all the routines for rendering a cartoon given a set
 //of atoms with assigned secondary structure
 
+//****BFM remove query string handling?
+const params = new URLSearchParams(window.location.search);
+const loopWidth = params.get('width') || 0.1; //original default=0.5
+const ribbonThickness = params.get('thickness') || 0.2; //original default=0.4
+const secStructWidth = params.get('sheetwidth') || 0.8; //original default=1.2
+const dnaWidth = params.get('nawidth') || 1.2; //original default=0.8
+const baseThickness = params.get('basethickness') || 0.2; //original default=0.4
+
 //TODO: generate normals directly in drawStrip and drawThinStrip
 
 var $3Dmol = $3Dmol || {};
@@ -111,10 +119,10 @@ $3Dmol.drawCartoon = (function() {
     var defaultNum = 5; // for cross-sectional shape
     var defaultDiv = 5; // for length-wise splicing
 
-    var coilWidth = 0.5;
-    var helixSheetWidth = 1.3;
-    var nucleicAcidWidth = 0.8;
-    var defaultThickness = 0.4;
+    var coilWidth = loopWidth; //****BFM original 0.5
+    var helixSheetWidth = secStructWidth; //****BFM original 1.3
+    var nucleicAcidWidth = dnaWidth; //****BFM original 0.8
+    var defaultThickness = ribbonThickness; //****BFM original 0.4
 
 
     var drawThinStrip = function(geo, p1, p2, colors) {
@@ -1141,8 +1149,9 @@ $3Dmol.drawCartoon = (function() {
                                 baseStartPt = new $3Dmol.Vector3(curr.x,
                                         curr.y, curr.z);
 
+                            //****BFM baseThickness originally 0.4
                             $3Dmol.GLDraw.drawCylinder(shapeGeo, baseStartPt,
-                                    baseEndPt, 0.4, $3Dmol.CC
+                                    baseEndPt, baseThickness, $3Dmol.CC
                                             .color(baseEndPt.color), 0, 2);
                             addBackbonePoints(points, num,
                                     !doNotSmoothen, terminalPt, termOrientPt,
@@ -1170,7 +1179,8 @@ $3Dmol.drawCartoon = (function() {
 
                     // reached next residue (potentially the first residue)
                     if (curr === undefined || curr.rescode != next.rescode || curr.resi != next.resi) {
-                        if (baseEndPt) // draw last NA residue's base
+                        //*****BFM curr may not be defined, so avoid this clause if not.
+                        if (curr && baseEndPt) // draw last NA residue's base
                         {
                             // start the cylinder at the midpoint between
                             // consecutive backbone atoms
@@ -1182,8 +1192,9 @@ $3Dmol.drawCartoon = (function() {
                                                             // thickness
                             baseStartPt.add(startFix);
 
+                            //****BFM baseThickness originally 0.4
                             $3Dmol.GLDraw.drawCylinder(shapeGeo, baseStartPt,
-                                    baseEndPt, 0.4, $3Dmol.CC
+                                    baseEndPt, baseThickness, $3Dmol.CC
                                             .color(baseEndPt.color), 0, 2);
                             baseStartPt = null;
                             baseEndPt = null;
@@ -1215,10 +1226,11 @@ $3Dmol.drawCartoon = (function() {
                         };
                 }
                 // atoms used to orient the backbone strand
+                //*****BFM curr may not be defined, so add checks
                 else if (isAlphaCarbon(curr) && next.atom === "O" ||
-                        inNucleicAcid && curr.atom === "P" &&
+                        inNucleicAcid && curr && curr.atom === "P" &&
                         (next.atom === "OP2" || next.atom === "O2P") ||
-                        inNucleicAcid && curr.atom.indexOf("O5") == 0 &&
+                        inNucleicAcid && curr && curr.atom.indexOf("O5") == 0 &&
                         next.atom.indexOf("C5") == 0) {
                     orientPt = new $3Dmol.Vector3(next.x, next.y, next.z);
                     orientPt.resi = next.resi;
@@ -1266,7 +1278,8 @@ $3Dmol.drawCartoon = (function() {
             else
                 baseStartPt = new $3Dmol.Vector3(curr.x, curr.y, curr.z);
 
-            $3Dmol.GLDraw.drawCylinder(shapeGeo, baseStartPt, baseEndPt, 0.4,
+            //****BFM baseThickness originally 0.4
+            $3Dmol.GLDraw.drawCylinder(shapeGeo, baseStartPt, baseEndPt, baseThickness,
                     $3Dmol.CC.color(baseEndPt.color), 0, 2);
             addBackbonePoints(points, num, !doNotSmoothen, terminalPt,
                     termOrientPt, prevOrientPt, curr, atoms, a);

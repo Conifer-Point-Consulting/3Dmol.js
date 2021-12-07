@@ -1,4 +1,4 @@
-(function (global, factory) {
+(function (global={}, factory) {
   (factory((global['MMTF'] = global.MMTF || {})));
 }(this, function (exports) { 'use strict';
 

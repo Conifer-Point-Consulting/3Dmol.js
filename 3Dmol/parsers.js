@@ -60,7 +60,8 @@ $3Dmol.Parsers = (function() {
      * @param {AtomSpec[]}
      *            atomsarray
      */
-    var assignBonds = function(atoms) {
+    //*******BFM mod add to parsers
+    var assignBonds = parsers.assignBonds = function(atoms) {
         // assign bonds - yuck, can't count on connect records
 
         for (var i = 0, n = atoms.length; i < n; i++) {
@@ -185,7 +186,8 @@ $3Dmol.Parsers = (function() {
      * @param {AtomSpec[]}
      *            atomsarray
      */
-    var assignPDBBonds = function(atomsarray) {
+    //*******BFM mod add to parsers
+    var assignPDBBonds = parsers.assignPDBBonds = function(atomsarray) {
         // assign bonds - yuck, can't count on connect records
         var protatoms = [];
         var hetatoms = [];
@@ -209,7 +211,7 @@ $3Dmol.Parsers = (function() {
         });
 
         // for identifying connected residues
-        var currentResi = -1;
+        var currentResi = -10000; //*****BFM : handle negative residue seq nums
         var reschain = -1;
         var lastResConnected;
 
@@ -1422,7 +1424,8 @@ $3Dmol.Parsers = (function() {
                     atom.x = parseFloat(tokens[2]);
                     atom.y = parseFloat(tokens[3]);
                     atom.z = parseFloat(tokens[4]);
-                    atom.atom = tokens[5];
+                    //*****BFM Change atom.atom (atom name) from tokens[5] to tokens[1]
+                    atom.atom = tokens[1];
                     var charge = parseFloat(tokens[8]);
                     
                     atom.index = index;
