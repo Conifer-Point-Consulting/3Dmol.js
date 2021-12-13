@@ -148,6 +148,8 @@ $3Dmol.GLViewer = (function() {
         var mouseStartX = 0;
         var mouseStartY = 0;
         var touchDistanceStart = 0;
+        //*****BFM for tracking how long a touch lasts
+        var touchStartTime = 0;
         var currentModelPos = 0;
         var cz = 0;
         var cslabNear = 0;
@@ -271,10 +273,9 @@ $3Dmol.GLViewer = (function() {
                     let hoverable_atoms = model.selectedAtoms({
                         hoverable : true
                     });
-                    Array.prototype.push.apply(hoverables,hoverable_atoms);
-
-                    Array.prototype.push.apply(clickables, atoms); //add atoms into clickables
-                    
+                    //*****BFM concat instead of push.apply to support large # of atoms
+                    hoverables = hoverables.concat(hoverable_atoms);
+                    clickables = clickables.concat(atoms); //add atoms into clickables
                 }
             }
             for (let i = 0, il = shapes.length; i < il; i++) {
@@ -289,6 +290,50 @@ $3Dmol.GLViewer = (function() {
             }
         };
         
+        //*****BFM restrict moused atoms to visible ones
+        var intIsVisible = function(int) {
+            return !int.clickable.atom // Shape case
+                || int.clickable.style.line || int.clickable.style.cross || int.clickable.style.stick
+                || int.clickable.style.sphere || int.clickable.style.cartoon;
+        };
+        //*****BFM
+        var intIsClickSphere = function(int) {
+            return int.clickable.style.clicksphere;
+        };
+        //*****BFM
+        /**
+         * @description Filter a list of intersection objects to include only
+         * the mouseable ones. Mouseable intersection objects are either:
+         * 1) A shape (not an atom)
+         * 2) A visible atom
+         * 3) A 'clicksphere' atom, if there are no other shapes or visible atoms
+         * Clicksphere atoms are used by bmaps for the hotspot fragment atoms;
+         * they are not visible, but they are mouse-interactive.
+         * Priority is given to visible atoms so that when mousing over a compound
+         * inside a hotspot the interaction is with the compound, not the hotspot.
+         */
+        var mouseableIntersects = function (list) {
+            var allowingClickSphere = true;
+            var haveClickSpheres = false;
+            return list.reduce( function (result, int) {
+                if (intIsVisible(int)) {
+                    // If we encounter a visible intersect, reject future clickspheres,
+                    // and remove any existing clickspheres
+                    allowingClickSphere = false;
+                    if (haveClickSpheres) {
+                        result = result.filter(intIsVisible);
+                        haveClickSpheres = false;
+                    }
+                    return result.concat(int);
+                } else if (allowingClickSphere && intIsClickSphere(int)) {
+                    haveClickSpheres = true;
+                    return result.concat(int);
+                } else {
+                    return result;
+                }
+            }, []);
+        };
+
          /**
          * Return a list of objects that intersect that at the specified viewer position.
          * 
@@ -308,7 +353,8 @@ $3Dmol.GLViewer = (function() {
             }
             if(objects.length == 0) return [];
             raycaster.setFromCamera(mouse,camera);
-            return raycaster.intersectObjects(modelGroup, objects);
+            //*****BFM restrict moused atoms to visible ones
+            return mouseableIntersects(raycaster.intersectObjects(modelGroup, objects));
         };
         
         //return offset of container
@@ -363,6 +409,12 @@ $3Dmol.GLViewer = (function() {
                         selected.callback(selected, _viewer, event, container);
                     }
                 }
+            } else {
+                //*****BFM Send background clicks to BFM
+                // invoke a clickable callback with null selection to signal background click
+                if (clickables.length > 0) {
+                    clickables[0].callback(null, _viewer, event, container);
+                }
             }
         };
         
@@ -388,28 +440,29 @@ $3Dmol.GLViewer = (function() {
             
         };
         
-        //checks for selection intersects on hover
-        var handleHoverSelection = function(mouseX, mouseY){
+        //*****BFM We need to send the (jquery) event with the hover
+        var handleHoverSelection = function(mouseX, mouseY, event){
             if(hoverables.length == 0) return;
             let intersects = targetedObjects(mouseX,mouseY,hoverables);
             if (intersects.length) {
                 var selected = intersects[0].clickable;
-                setHover(selected);
+                setHover(selected, event); //*****BFM: send event with hover callback
                 current_hover=selected;
             }
             else{
-                setHover(null);
+                setHover(null, event); //*****BFM: send event with hover callback
             }
         };
         
         //sees if the mouse is still on the object that invoked a hover event and if not then the unhover callback is called
-        var handleHoverContinue = function(mouseX,mouseY){
+        //*****BFM We need to send the (jquery) event with the hover
+        var handleHoverContinue = function(mouseX,mouseY, event){
             let intersects = targetedObjects(mouseX,mouseY,hoverables);
             if(intersects.length == 0 || intersects[0] === undefined){
-                setHover(null);
+                setHover(null, event); //*****BFM: send event with hover callback
             }
             if(intersects[0]!== undefined && intersects[0].clickable !== current_hover){
-                setHover(null);
+                setHover(null, event); //*****BFM: send event with hover callback
             }
         };
 
@@ -488,11 +541,17 @@ $3Dmol.GLViewer = (function() {
         // this event is bound to the body element, not the container,
         // so no need to put it inside initContainer()
         $('body').bind('mouseup touchend', function(ev) {
+            //*****BFM pass along the amount of time the click or touch lasted
+            ev.data = {pressLength: Date.now() - touchStartTime};
             // handle selection
             if(isDragging && scene) { //saw mousedown, haven't moved
                 var x = getX(ev);
                 var y = getY(ev);
-                if(x == mouseStartX && y == mouseStartY) {
+                //if(x == mouseStartX && y == mouseStartY) {
+                //*****BFM it is difficult to not move your finger at all when tapping
+                // so we use an acceptable move range, rather than strict no movement
+                var touchTolerance = 5;
+                if(Math.abs(x - mouseStartX) < touchTolerance && Math.abs(y - mouseStartY) < touchTolerance) {
                     var offset = canvasOffset();
                     var mouseX = ((x - offset.left) / WIDTH) * 2 - 1;
                     var mouseY = -((y - offset.top) / HEIGHT) * 2 + 1;
@@ -652,6 +711,8 @@ $3Dmol.GLViewer = (function() {
             mouseStartX = x;
             mouseStartY = y;
             touchDistanceStart = 0;
+            //*****BFM track when the touch started so we can get length of touch
+            touchStartTime = Date.now();
             if (ev.originalEvent.targetTouches &&
                     ev.originalEvent.targetTouches.length == 2) {
                 touchDistanceStart = calcTouchDistance(ev);
@@ -662,6 +723,15 @@ $3Dmol.GLViewer = (function() {
             cslabNear = slabNear;
             cslabFar = slabFar;
            
+        };
+
+        //*****BFM capture zoom events
+        var handleZoom = function(zoomDelta, event) {
+            if (clickables.length > 0) {
+                event.type = 'zoom';
+                event.delta = zoomDelta;
+                clickables[0].callback(null, _viewer, event, container);
+            }
         };
         
         var _handleMouseScroll  = this._handleMouseScroll = function(ev) { // Zoom
@@ -677,6 +747,7 @@ $3Dmol.GLViewer = (function() {
                 return;
             }
 
+            var oldZoom = rotationGroup.position.z; //*****BFM capture zoom events
             var scaleFactor = (CAMERA_Z - rotationGroup.position.z) * 0.85;
             var mult = 1.0;
             if(ev.originalEvent.ctrlKey) {
@@ -687,7 +758,8 @@ $3Dmol.GLViewer = (function() {
             } else if (ev.originalEvent.wheelDelta) { 
                 rotationGroup.position.z -= mult * scaleFactor * ev.originalEvent.wheelDelta / 400;
             }
-            rotationGroup.position.z = adjustZoomToLimits(rotationGroup.position.z);            
+            rotationGroup.position.z = adjustZoomToLimits(rotationGroup.position.z);
+            handleZoom(rotationGroup.position.z - oldZoom, ev); //*****BFM capture zoom events
             show();            
         };        
         /**
@@ -735,13 +807,15 @@ $3Dmol.GLViewer = (function() {
             
             // hover timeout
             if(current_hover !== null) {
+                //*****BFM We need to send the (jquery) event with the hover
                 handleHoverContinue(mouseX,mouseY,ev);
             }
             
             if(hoverables.length > 0) {
                 hoverTimeout=setTimeout(
                         function(){
-                            handleHoverSelection(mouseX,mouseY);
+                            //*****BFM We need to send the (jquery) event with the hover
+                            handleHoverSelection(mouseX,mouseY, ev);
                         },
                     hoverDuration);
             }
@@ -788,11 +862,16 @@ $3Dmol.GLViewer = (function() {
                 slabNear = cslabNear + dx * 100;
                 slabFar = cslabFar - dy * 100;
             } else if (mode == 2 || mouseButton == 3 || ev.shiftKey) { // Zoom
+                var oldZoom = rotationGroup.position.z; //*****BFM capture zoom events
                 scaleFactor = (CAMERA_Z - rotationGroup.position.z) * 0.85;
                 if (scaleFactor < 80)
                     scaleFactor = 80;
                 rotationGroup.position.z = cz + dy * scaleFactor;
-                rotationGroup.position.z = adjustZoomToLimits(rotationGroup.position.z); 
+                rotationGroup.position.z = adjustZoomToLimits(rotationGroup.position.z);
+                //*****BFM capture zoom events
+                if (rotationGroup.position.z != oldZoom) {
+                    handleZoom(rotationGroup.position.z - oldZoom, ev);
+                }
             } else if (mode == 1 || mouseButton == 2 || ev.ctrlKey) { // Translate
                 var t = screenXY2model(ratioX*(x-mouseStartX), ratioY*(y-mouseStartY));
                 modelGroup.position.addVectors(currentModelPos,t);
@@ -2459,6 +2538,17 @@ $3Dmol.GLViewer = (function() {
             return s;
         };
 
+        //*****BFM Add cone, copied from cylinder
+        this.addCone = function(spec) {
+            spec = spec || {};
+            var s = new $3Dmol.GLShape(spec);
+            s.shapePosition = shapes.length;
+            s.addCone(spec);
+            shapes.push(s);
+            s.finalize();
+            return s;
+        };
+
         /**
          * Create and add Curve shape
          * 
@@ -3255,6 +3345,13 @@ $3Dmol.GLViewer = (function() {
             return m;
         };
         
+        //*****BFM add model reset
+        this.resetModel = function(model) {
+            if (!model)
+                return;
+            model.removegl(modelGroup);
+            return this;
+        };
 
         /**
          * Delete specified model from viewer

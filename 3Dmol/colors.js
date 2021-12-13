@@ -510,6 +510,8 @@ $3Dmol.elementColors.rasmol = {
         'MN': 0x808090,
         'Fe': 0xFFA500,
         'FE': 0xFFA500,
+        'Co': 0x0047AB,
+        'CO': 0x0047AB,
         'Ni': 0xA52A2A,
         'NI': 0xA52A2A,
         'Cu': 0xA52A2A,
