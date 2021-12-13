@@ -300,7 +300,7 @@ $3Dmol.GLViewer = (function() {
         var intIsClickSphere = function(int) {
             return int.clickable.style.clicksphere;
         };
-        //*****BFM 
+        //*****BFM
         /**
          * @description Filter a list of intersection objects to include only
          * the mouseable ones. Mouseable intersection objects are either:
@@ -333,7 +333,7 @@ $3Dmol.GLViewer = (function() {
                 }
             }, []);
         };
-        
+
          /**
          * Return a list of objects that intersect that at the specified viewer position.
          * 
@@ -410,8 +410,8 @@ $3Dmol.GLViewer = (function() {
                     }
                 }
             } else {
-                //*****BFM Send background clicks to BFM 
-                // invoke a clickable callback with null selection to signal background click 
+                //*****BFM Send background clicks to BFM
+                // invoke a clickable callback with null selection to signal background click
                 if (clickables.length > 0) {
                     clickables[0].callback(null, _viewer, event, container);
                 }
@@ -547,7 +547,7 @@ $3Dmol.GLViewer = (function() {
             if(isDragging && scene) { //saw mousedown, haven't moved
                 var x = getX(ev);
                 var y = getY(ev);
-                //if(x == mouseStartX && y == mouseStartY) {                
+                //if(x == mouseStartX && y == mouseStartY) {
                 //*****BFM it is difficult to not move your finger at all when tapping
                 // so we use an acceptable move range, rather than strict no movement
                 var touchTolerance = 5;
@@ -725,7 +725,7 @@ $3Dmol.GLViewer = (function() {
            
         };
 
-        //*****BFM capture zoom events 
+        //*****BFM capture zoom events
         var handleZoom = function(zoomDelta, event) {
             if (clickables.length > 0) {
                 event.type = 'zoom';
@@ -869,7 +869,7 @@ $3Dmol.GLViewer = (function() {
                 rotationGroup.position.z = cz + dy * scaleFactor;
                 rotationGroup.position.z = adjustZoomToLimits(rotationGroup.position.z);
                 //*****BFM capture zoom events
-                if (rotationGroup.position.z != oldZoom) {          
+                if (rotationGroup.position.z != oldZoom) {
                     handleZoom(rotationGroup.position.z - oldZoom, ev);
                 }
             } else if (mode == 1 || mouseButton == 2 || ev.ctrlKey) { // Translate
