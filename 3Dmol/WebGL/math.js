@@ -248,6 +248,13 @@ $3Dmol.Vector3.prototype = {
         return this;
     },
 
+    multiplyVectors: function(a, b) { //elementwise
+        this.x = a.x * b.x;
+        this.y = a.y * b.y;
+        this.z = a.z * b.z;
+
+        return this;
+    },
     sub : function(v) {
 
         this.x -= v.x;
@@ -1131,8 +1138,7 @@ $3Dmol.Matrix4.prototype = {
         te[15] = n12 * n23 * n31 - n13 * n22 * n31 + n13 * n21 * n32 - n11
                 * n23 * n32 - n12 * n21 * n33 + n11 * n22 * n33;
 
-        var det = me[0] * te[0] + me[1] * te[4] + me[2] * te[8] + me[3]
-                * te[12];
+        var det = n11 * te[0] + n21 * te[4] + n31 * te[8] + n41 * te[12];
 
         if (det === 0) {
 

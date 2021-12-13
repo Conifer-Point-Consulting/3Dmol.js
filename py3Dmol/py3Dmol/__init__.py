@@ -1,11 +1,19 @@
 import time
 import json
+import sys
 
 try:
     import IPython.display
     _has_IPython = True
 except ImportError:
     _has_IPython = False
+
+if sys.version_info >= (3, 8):
+    from importlib import metadata
+else:
+    import importlib_metadata as metadata
+
+__version__ = metadata.version('py3Dmol')
 
 #surface type constants
 VDW =1
@@ -22,6 +30,14 @@ def using_ipython(func):
 
     return inner
 
+def tostr(arg):
+    '''convert an argument to javascript string,
+    can handle top-level numpy/torch arrays'''
+    try:
+        return json.dumps(arg)
+    except TypeError:
+        return json.dumps(arg.tolist()) #numpy arrays and torch tensor
+        
 class view(object):
     '''A class for constructing embedded 3Dmol.js views in ipython notebooks.
        The results are completely static which means there is no need for there
@@ -142,7 +158,7 @@ if(warn) {
         '''Instantiate a new viewer window. Calling this will orphan any previously instantiated viewer windows.'''
         self.updatejs = ''
         html = self._make_html()
-        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html})
+        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html},metadata={})
 
     @using_ipython
     def insert(self, containerid):
@@ -150,7 +166,7 @@ if(warn) {
         into existing container'''
         html = self._make_html()
         html += '''<script>$("#%s").append($("#3dmolviewer_%s")); </script>'''%(containerid,self.uniqueid)
-        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html})
+        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html},metadata={})
 
     def _make_html(self):
         self.uniqueid = str(time.time()).replace('.','')
@@ -161,7 +177,7 @@ if(warn) {
     @using_ipython
     def _repr_html_(self):
         html = self._make_html()
-        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html})
+        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':html, 'text/html': html},metadata={})
 
     @using_ipython
     def update(self):
@@ -176,7 +192,7 @@ if(warn) {
             });
             </script>''' % (self.updatejs.replace('UNIQUEID',self.uniqueid),self.uniqueid)
         self.updatejs = ''
-        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':script, 'text/html': script})
+        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':script, 'text/html': script},metadata={})
 
     @using_ipython
     def png(self):
@@ -188,14 +204,14 @@ if(warn) {
             var png = viewer_{0}.pngURI()
             $('#img_{0}').attr('src', png)
             </script>'''.format(self.uniqueid)
-        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':script, 'text/html': script})
-
+        return IPython.display.publish_display_data({'application/3dmoljs_load.v0':script, 'text/html': script},metadata={})
+        
     class model(object):
       '''Wrapper for referencing a model within a viewer'''
       def __init__(self, viewer, accesscmd):
         self.accesscmd = accesscmd
         self.viewer = viewer
-
+        
       def __getattr__(self,name):
         '''auto-instantiate javascript calls through model'''
         if name.startswith('_'): #object to ipython canary functions
@@ -204,7 +220,7 @@ if(warn) {
         def makejs(*args,**kwargs):
           cmd = '\t%s.%s(' % (self.accesscmd,name);
           for arg in args:
-              cmd += '%s,' % json.dumps(arg)
+              cmd += '%s,' % tostr(arg)
           cmd = cmd.rstrip(',')
           cmd += ');\n';
 
@@ -221,7 +237,7 @@ if(warn) {
               raise ValueError("Incorrectly formated viewer argument.  Must specify row and column",self.viewergrid)
           cmd = '\tviewergrid_UNIQUEID[%d][%d].getModel(' % (coords[0],coords[1]);
           for arg in args:
-              cmd += '%s,' % json.dumps(arg)
+              cmd += '%s,' % tostr(arg)
           cmd = cmd.rstrip(',')
           cmd += ')';
         else:
@@ -229,7 +245,7 @@ if(warn) {
       else:
         cmd = '\tviewer_UNIQUEID.getModel(';
         for arg in args:
-            cmd += '%s,' % json.dumps(arg)
+            cmd += '%s,' % tostr(arg)
         cmd = cmd.rstrip(',')
         cmd += ')';
       return self.model(self,cmd)
@@ -238,7 +254,7 @@ if(warn) {
         '''auto-instantiate javascript calls based on whatever the user provided'''
         if name.startswith('_'): #object to ipython canary functions
             raise AttributeError("%r object has no attribute %r" %  (self.__class__, name))
-
+            
         def makejs(*args,**kwargs):
             if self.viewergrid:
                 if kwargs and 'viewer' in kwargs:
@@ -247,7 +263,7 @@ if(warn) {
                         raise ValueError("Incorrectly formated viewer argument.  Must specify row and column",self.viewergrid)
                     cmd = '\tviewergrid_UNIQUEID[%d][%d].%s(' % (coords[0],coords[1],name);
                     for arg in args:
-                        cmd += '%s,' % json.dumps(arg)
+                        cmd += '%s,' % tostr(arg)
                     cmd = cmd.rstrip(',')
                     cmd += ');\n';
                 else: #apply to every viewer
@@ -256,13 +272,13 @@ if(warn) {
                         for c in range(self.viewergrid[1]):
                             cmd += '\tviewergrid_UNIQUEID[%d][%d].%s(' % (r,c,name);
                             for arg in args:
-                                cmd += '%s,' % json.dumps(arg)
+                                cmd += '%s,' % tostr(arg)
                             cmd = cmd.rstrip(',')
                             cmd += ');\n';
             else:
                 cmd = '\tviewer_UNIQUEID.%s(' % name;
                 for arg in args:
-                    cmd += '%s,' % json.dumps(arg)
+                    cmd += '%s,' % tostr(arg)
                 cmd = cmd.rstrip(',')
                 cmd += ');\n';
 

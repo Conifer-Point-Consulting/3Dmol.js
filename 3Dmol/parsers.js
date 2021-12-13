@@ -5,6 +5,30 @@
  * 
  * $3Dmol.Parsers.<ext> corresponds to the parsers for files with extension ext
  */
+ 
+ 
+  /**
+  * Parser options specification. Used to specify the options of a GLModel.  Depending on the input file format, not all fields may be defined.
+  * @typedef ParserOptionsSpec
+  * @prop {boolean} frames - true if you want to add to a new frame and false otherwise ; supported by all
+  * @prop {object} vibrate - object specifying the vibration behavior ; supported by all
+  * @prop {number} vibrate.frames - number of frames to be created, default to 10 ; supported by all
+  * @prop {number} vibrate.amplitude -amplitude of distortion, default to 1 (full) ; supported by all
+  * @prop {boolean} multimodel - specifies weather or not multiple models are being defined ; supported by xyz,sdf, or mol2
+  * @prop {boolean} onemol -specifies weather or not the model is of one molecule ; Supported by xyz , sdf , mol2
+  * @prop {boolean} keepH - do not strip hydrogens ; supported by sdf,mol2
+  * @prop {object} parseStyle - used to define ChemDoodle styles ; supported by cdjson
+  * @prop {boolean} doAssembly - boolean dictating weather or not to do assembly ; supported by mcif
+  * @prop {boolean} duplicateAssemblyAtoms- Set to true if you wish to duplicate assembly atoms otherwise false ; supported by all formats with symmetries.  Not duplicating will result in faster rendering but it will not be possible to individually style symmetries.
+  * @prop {boolean} normalizeAssembly - shift symmetry mates so their centroid is in the unit cell
+  * @prop {boolean} dontConnectDuplicatedAtoms - do not detect bonds between symmetries generated with duplicateAssemblyAtoms (cif only - other formats never make bonds between symmetries)
+  * @prop {boolean} noSecondaryStructure - boolean dictating the presence of a secondary structure ; supported by pdb
+  * @prop {boolean} noComputeSecondaryStructure - do not compute ss ; supported by pdb
+  * @prop {string} altLoc -which alternate location to select, if present; '*' to load all ; supported by pdb
+  * @prop {number} assemblyIndex - index of the assembly in symmetry ; supported by mmtf
+  * @prop {boolean} assignBonds - for formats without explicit bonds (e.g. PDB, xyz) infer bonding (default true). 
+  */
+  
 $3Dmol.Parsers = (function() {
     var parsers = {};
 
@@ -18,6 +42,18 @@ $3Dmol.Parsers = (function() {
             Cs:2.25,Ba:1.98,Lu:1.60,Hf:1.50,Ta:1.38,W :1.46,Re:1.59,Os:1.44,Ir:1.37,Pt:1.28,Au:1.44,Hg:1.49,Tl:1.48,Pb:1.47,Bi:1.46,/* Po *//* At */Rn:1.45,
 
             // None of the bottom row or any of the Lanthanides have bond lengths
+    };
+    var anumToSymbol = {
+            1: 'H',                                                                                                                                2: 'He',
+            3:'Li',4:'Be',                                                                                  5: 'B', 6: 'C', 7:'N', 8:'O', 9:'F',  10: 'Ne',
+            11: 'Na',12:'Mg',                                                                               13: 'Al',14:'Si',15:'P',16:'S',17:'Cl',18:'Ar',
+            19: 'K',20:'Ca',21:'Sc',22:'Ti',23:'V',24:'Cr',25:'Mn',26:'Fe',27:'Co',28:'Ni',29:'Cu',30:'Zn',31:'Ga',32:'Ge',33:'As',34:'Se',35:'Br',36:'Kr',
+            37:'Rb',38:'Sr',39:'Y',40:'Zr',41:'Nb',42:'Mo',43:'Tc',44:'Ru',45:'Rh',46:'Pd',47:'Ag',48:'Cd',49:'In',50:'Sn',51:'Sb',52:'Te',53:'I', 54:'Xe',
+            55:'Cs',56:'Ba',71:'Lu',72:'Hf',73:'Ta',74:'W',75:'Re',76:'Os',77:'Ir',78:'Pt',79:'Au',80:'Hg',81:'Tl',82:'Pb',83:'Bi',84:'Po',85:'At',86:'Rn',
+            87:'Fr',88:'Ra',104:'Rf',105:'Db',106:'Sg',107:'Bh',108:'Hs',109:'Mt',110:'Ds',111:'Rg',112:'Cn',113:'Nh',114:'Fl',115:'Mc',116:'Lv',117:'Ts',118:'Og',
+            
+            57:'La',58:'Ce',59:'Pr',60:'Nd',61:'Pm',62:'Sm',63:'Eu',64:'Gd',65:'Tb',66:'Dy',67:'Ho',68:'Er',69:'Tm',70:'Yb',
+            89:'Ac',90:'Th',91:'Pa',92:'U',93:'Np',94:'Pu',95:'Am',96:'Cm',97:'Bk',98:'Cf',99:'Es',100:'Fm',101:'Md',102:'No',
     };
     var bondLength = function(elem) {
         return bondTable[elem] || 1.6;
@@ -558,7 +594,7 @@ $3Dmol.Parsers = (function() {
       var atoms = [[]];
       var lattice = {};
 
-      var lines = str.replace(/^\s+/, "").split(/[\n\r]/);
+      var lines = str.replace(/^\s+/, "").split(/\r?\n/);
 
       if (lines.length < 3){
         return atoms;
@@ -648,22 +684,71 @@ $3Dmol.Parsers = (function() {
      * @param {ParserOptionsSpec}
      *            options
      */
-    parsers.cube = parsers.CUBE = function(str /*, options*/) {
+    parsers.cube = parsers.CUBE = function(str, options) {
+        options = options || {};
         var atoms = [[]];
-        var lines = str.replace(/^\s+/, "").split(/\n\r|\r+|\n/);
+        var lines = str.split(/\r?\n/);
+        var assignbonds = options.assignBonds === undefined ? true : options.assignBonds;
 
         if (lines.length < 6)
             return atoms;
 
-        var lineArr = lines[2].replace(/^\s+/, "").replace(/\s+/g, " ").split(
-                " ");
+        var lineArr = lines[2].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
 
         var natoms = Math.abs(parseFloat(lineArr[0]));
 
-        lineArr = lines[3].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
+        let cryst = {};
+        var origin = cryst.origin = new $3Dmol.Vector3(parseFloat(lineArr[1]),
+                parseFloat(lineArr[2]), parseFloat(lineArr[3]));
 
+        lineArr = lines[3].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
+        lineArr = lines[3].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
+       
         // might have to convert from bohr units to angstroms
-        var convFactor = (parseFloat(lineArr[0]) > 0) ? 0.529177 : 1;
+        // there is a great deal of confusion here:
+        // n>0 means angstroms: http://www.gaussian.com/g_tech/g_ur/u_cubegen.htm
+        // n<0 means angstroms: http://paulbourke.net/dataformats/cube/
+        // always assume bohr: openbabel source code
+        // always assume angstrom: http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/cubeplugin.html
+        // we are going to go with n<0 means angstrom - note this is just the first n
+        var convFactor = (lineArr[0] > 0) ? 0.529177 : 1;
+        origin.multiplyScalar(convFactor);
+
+        var nX = Math.abs(lineArr[0]);
+        var xVec = new $3Dmol.Vector3(parseFloat(lineArr[1]),
+                parseFloat(lineArr[2]), parseFloat(lineArr[3]))
+                .multiplyScalar(convFactor);
+    
+        lineArr = lines[4].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
+        var nY = Math.abs(lineArr[0]);
+        var yVec = new $3Dmol.Vector3(parseFloat(lineArr[1]),
+                parseFloat(lineArr[2]), parseFloat(lineArr[3]))
+                .multiplyScalar(convFactor);
+    
+        lineArr = lines[5].replace(/^\s+/, "").replace(/\s+/g, " ").split(" ");
+        var nZ = Math.abs(lineArr[0]);
+        var zVec = new $3Dmol.Vector3(parseFloat(lineArr[1]),
+                parseFloat(lineArr[2]), parseFloat(lineArr[3]))
+                .multiplyScalar(convFactor);
+
+        cryst.size = {x:nX, y:nY, z:nZ};
+        cryst.unit = new $3Dmol.Vector3(xVec.x, yVec.y, zVec.z);
+    
+        if (xVec.y != 0 || xVec.z != 0 || yVec.x != 0 || yVec.z != 0 || zVec.x != 0
+                || zVec.y != 0) {
+            //need a transformation matrix
+            cryst.matrix4 =  new $3Dmol.Matrix4(xVec.x, yVec.x, zVec.x, 0, xVec.y, yVec.y, zVec.y, 0, xVec.z, yVec.z, zVec.z, 0, 0,0,0,1);
+            // include translation in matrix
+            let t = new $3Dmol.Matrix4().makeTranslation(origin.x, origin.y, origin.z);
+            cryst.matrix4 = cryst.matrix4.multiplyMatrices(t,cryst.matrix4);
+            cryst.matrix = cryst.matrix4.matrix3FromTopLeft();
+            // all translation and scaling done by matrix, so reset origin and unit
+            cryst.origin = new $3Dmol.Vector3(0,0,0);
+            cryst.unit = new $3Dmol.Vector3(1,1,1);
+        }
+
+        atoms.modelData = [{cryst:cryst}];
+
 
         // Extract atom portion; send to new GLModel...
         lines = lines.splice(6, natoms);
@@ -677,19 +762,7 @@ $3Dmol.Parsers = (function() {
             var line = lines[i - start];
             var tokens = line.replace(/^\s+/, "").replace(/\s+/g, " ").split(
                     " ");
-
-            if (tokens[0] == 6)
-                atom.elem = "C";
-
-            else if (tokens[0] == 1)
-                atom.elem = "H";
-
-            else if (tokens[0] == 8)
-                atom.elem = "O";
-
-            else if (tokens[0] == 17)
-                atom.elem = "Cl";
-
+            atom.elem = anumToSymbol[tokens[0]];
             atom.x = parseFloat(tokens[2]) * convFactor;
             atom.y = parseFloat(tokens[3]) * convFactor;
             atom.z = parseFloat(tokens[4]) * convFactor;
@@ -701,9 +774,11 @@ $3Dmol.Parsers = (function() {
             atoms[atoms.length-1].push(atom);
 
         }
-        for (let i = 0; i < atoms.length; i++)
-            assignBonds(atoms[i]);
-
+        
+        if(assignbonds) {
+            for (let i = 0; i < atoms.length; i++)
+                assignBonds(atoms[i]);
+        }
         return atoms;
     };
 
@@ -715,8 +790,9 @@ $3Dmol.Parsers = (function() {
      *            options
      */
     parsers.xyz = parsers.XYZ = function(str, options) {
-        
+        options = options || {};
         var atoms = [[]];
+        var assignbonds = options.assignBonds === undefined ? true : options.assignBonds;
         var lines = str.split(/\r?\n|\r/);
         while (lines.length > 0) {
             if (lines.length < 3)
@@ -726,6 +802,19 @@ $3Dmol.Parsers = (function() {
                 break;
             if (lines.length < atomCount + 2)
                 break;
+
+            var lattice_re = /Lattice\s*=\s*["\{\}]([^"\{\}]+)["\{\}]\s*/gi;
+            var lattice_match = lattice_re.exec(lines[1]);
+            if ((lattice_match != null) && (lattice_match.length > 1)) {
+                var lattice = new Float32Array(lattice_match[1].split(/\s+/));
+                var matrix = new $3Dmol.Matrix3(
+                    lattice[0], lattice[3], lattice[6],
+                    lattice[1], lattice[4], lattice[7],
+                    lattice[2], lattice[5], lattice[8]
+                );
+                atoms.modelData = [{cryst:{matrix:matrix}}];
+            }
+
             var offset = 2;
             var start = atoms[atoms.length-1].length;
             var end = start + atomCount;
@@ -761,8 +850,10 @@ $3Dmol.Parsers = (function() {
             }
         }
         
-        for (let i = 0; i < atoms.length; i++) {
-            assignBonds(atoms[i]);
+        if(assignbonds) {
+            for (let i = 0; i < atoms.length; i++) {
+                assignBonds(atoms[i]);
+            }
         }
         
         if (options.onemol) {
@@ -1051,9 +1142,11 @@ $3Dmol.Parsers = (function() {
      *            options
      */
     parsers.mcif = parsers.cif = function(str, options) {
+        options = options || {};
         var atoms = [];
         var noAssembly = !options.doAssembly; // don't assemble by default
         var modelData = atoms.modelData = [];
+        var assignbonds = options.assignBonds === undefined ? true : options.assignBonds;
 
         //coordinate conversion
         var fractionalToCartesian = function(cmat, x, y, z) {
@@ -1344,10 +1437,10 @@ $3Dmol.Parsers = (function() {
             }
         }
         for (let i = 0; i < atoms.length; i++) {
-            assignBonds(atoms[i]);
+            if(assignbonds) assignBonds(atoms[i]);
             computeSecondaryStructure(atoms[i]);
             processSymmetries(modelData[i].symmetries, atoms[i], options, modelData[i].cryst);
-            if(options.duplicateAssemblyAtoms && !options.dontConnectDuplicatedAtoms) assignBonds(atoms[i]);
+            if(options.duplicateAssemblyAtoms && !options.dontConnectDuplicatedAtoms && assignbonds) assignBonds(atoms[i]);
         }
 
         return atoms;
@@ -1524,6 +1617,7 @@ $3Dmol.Parsers = (function() {
     //return one model worth of pdb, returns atoms, modelData, and remaining lines
     var getSinglePDB = function(lines, options, sslookup) {
         var atoms = [];
+        var assignbonds = options.assignBonds === undefined ? true : options.assignBonds;        
         var noH = !options.keepH; // suppress hydrogens by default
         var ignoreStruct = !!options.noSecondaryStructure; 
         var computeStruct = !options.noComputeSecondaryStructure;
@@ -1730,24 +1824,18 @@ $3Dmol.Parsers = (function() {
                 }
             }
         }
-
-        var starttime = (new Date()).getTime();
         
         //fix any "one-way" bonds in CONECT records
         validateBonds(atoms, serialToIndex);
         // assign bonds - yuck, can't count on connect records
-        assignPDBBonds(atoms);
-       // console.log("bond connecting " + ((new Date()).getTime() -starttime));
+        if(assignbonds) assignPDBBonds(atoms);
 
         if (!noAssembly)
             processSymmetries(modelData.symmetries, atoms, options, modelData.cryst);
 
         if (computeStruct  && !ignoreStruct) {
-            starttime = (new Date()).getTime();
             computeSecondaryStructure(atoms);
-           // console.log("secondary structure " + ((new Date()).getTime() - starttime));
         }
-        starttime = (new Date()).getTime();
 
         // Assign secondary structures from pdb file
         if(!isEmpty(sslookup)) {
@@ -1780,11 +1868,12 @@ $3Dmol.Parsers = (function() {
      * @param {string}
      *            str
      * @param {ParserOptionsSpec}
-     *            options - keepH (do not strip hydrogens), noSecondaryStructure
+     *            options - keepH (do not strip hydrogens), noSecondaryStructure,
+     *            assignbonds (default true, calculate implicit bonds)
      *            (do not compute ss), altLoc (which alternate location to select, if present; '*' to load all)
      */
     parsers.pdb = parsers.PDB = parsers.pdbqt = parsers.PDBQT = function(str, options) {
-
+        options = options || {};
         var atoms = []; //a separate list for each model
         var sslookup = {}; //stores SHEET and HELIX info, which is shared across models
         atoms.modelData = [];
@@ -2493,9 +2582,9 @@ $3Dmol.Parsers = (function() {
             }
             start = offset+atomCount-1;
         }
-        if (options.assignbonds){
- 	    for (var i=0; i<atoms.length; i++)
-	        assignBonds(atoms[i]);          
+        if (options.assignBonds){
+     	    for (var i=0; i<atoms.length; i++)
+    	        assignBonds(atoms[i]);          
         }
         return atoms;       
     };

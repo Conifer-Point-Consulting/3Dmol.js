@@ -126,18 +126,20 @@ $.ajaxTransport(
    );
  *                        
  */
+
 $3Dmol.createViewer = function(element, config, shared_viewer_resources)
 {
     if(typeof(element) === "string")
-        element = $("#"+element);
+    element = $("#"+element);
     if(!element) return;
-
+    
     config = config || {}; 
     shared_viewer_resources = shared_viewer_resources || {};
-
+    
     //try to create the  viewer
     try {
-        return new $3Dmol.GLViewer(element, config, shared_viewer_resources);
+        var viewer = new $3Dmol.GLViewer(element, config, shared_viewer_resources);
+        return viewer;
     }
     catch(e) {
         throw "error creating viewer: "+e;
@@ -325,7 +327,7 @@ $3Dmol.download = function(query, viewer, options, callback) {
                 viewer.zoomTo();
                 viewer.render();
                 resolve(m);
-            });
+            },function() {console.log("fetch of "+uri+" failed.");});
         });
     }
     else {
@@ -376,13 +378,28 @@ $3Dmol.download = function(query, viewer, options, callback) {
                 .then(function(ret) {
                     handler(ret);
                     resolve(m);
-                });
+                }).catch(function(){
+                    //if mmtf server is being annoying, fallback to text
+                    pdbUri = options && options.pdbUri ? options.pdbUri : "https://files.rcsb.org/view/";
+                    uri = pdbUri + query + ".pdb";
+                    console.log("falling back to pdb format");
+                    $.get(uri, function(ret) {
+                        handler(ret);
+                        resolve(m);
+                    }).fail(function(e) {
+                       handler("");
+                       resolve(m);
+                       console.log("fetch of "+uri+" failed: "+e.statusText);
+                       });
+                }); //an error msg has already been printed
             }
             else {        
                $.get(uri, function(ret) {
                    handler(ret);
                    resolve(m);
                }).fail(function(e) {
+                   handler("");
+                   resolve(m);
                    console.log("fetch of "+uri+" failed: "+e.statusText);
                });
             }

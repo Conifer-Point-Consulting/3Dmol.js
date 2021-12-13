@@ -84,9 +84,11 @@ $3Dmol.Label.prototype = {
          * @prop {ColorSpec} backgroundColor - color of background, default black
          * @prop {string} backgroundOpacity - opacity of background, default 1
          * @prop {$3Dmol.Vector3} position - x,y,z coordinates for label
+         * @prop {$3Dmol.Vector2} screenOffset - x,y _pixel_ offset of label from position
          * @prop {boolean} inFront - always put labels in from of model
          * @prop {boolean} showBackground - show background rounded rectangle, default true
          * @prop {boolean} fixed - sets the label to change with the model when zooming
+         * @prop {boolean} useScreen - position is in screen (not model) coordinates which are pixel offsets from upper left corner.
          * @prop {Object} backgroundImage - An element to draw into the label.  Any CanvasImageSource is allowed.
          * @prop {string} alignment - how to orient the label w/respect to position: topLeft (default), topCenter, topRight, centerLeft, center, centerRight, bottomLeft, bottomCenter, bottomRight
          * @prop {number} frame - if set, only display in this frame of an animation
@@ -183,6 +185,25 @@ $3Dmol.Label.prototype = {
             this.context.strokeStyle = "rgba(" + borderColor.r + ","
                     + borderColor.g + "," + borderColor.b + ","
                     + borderColor.a + ")";
+                    
+            if(style.backgroundGradient) {
+               let gradient = this.context.createLinearGradient(0,height/2, width,height/2);
+               let g = $3Dmol.Gradient.getGradient(style.backgroundGradient);
+               let minmax = g.range();
+               let min = -1;
+               let max = 1;
+               if(minmax) {
+                 min = minmax[0];
+                 max = minmax[1];
+               }
+               let d = max-min;
+               for(let i = 0; i < 1.01; i += 0.1) {
+                 let c = getColor(g.valueToHex(min+d*i));
+                 let cname = "rgba("+c.r+","+c.g+","+c.b+","+c.a+")";
+                 gradient.addColorStop(i, cname);
+               }
+               this.context.fillStyle = gradient;
+            }
 
             this.context.lineWidth = borderThickness;
             if(showBackground) {
@@ -212,7 +233,8 @@ $3Dmol.Label.prototype = {
                 map : texture,
                 useScreenCoordinates : useScreen,
                 alignment : spriteAlignment,
-                depthTest : !inFront
+                depthTest : !inFront,
+                screenOffset : style.screenOffset || null
             });
 
             this.sprite.scale.set(1,1,1);

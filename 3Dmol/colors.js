@@ -197,6 +197,7 @@ var htmlColors = $3Dmol.htmlColors = {
 // in an attempt to reduce memory overhead, cache all $3Dmol.Colors
 // this makes things a little faster
 $3Dmol.CC = {
+    rgbRegEx : /rgb(a?)\(\s*([^ ,\)\t]+)\s*,\s*([^ ,\)\t]+)\s*,\s*([^ ,\)\t]+)/i,
     cache : {0:new $3Dmol.Color(0)},
     color : function color_(hex) {
         // Undefined values default to black
@@ -236,9 +237,22 @@ $3Dmol.CC = {
             if(hex.length == 7 && hex[0] == '#') {
                 return parseInt(hex.substring(1),16);
             } 
-            else {
-                return htmlColors[hex.toLowerCase()] || 0x000000;
+            
+            let m = this.rgbRegEx.exec(hex);
+            if(m) {
+                if(m[1] != "") {
+                    console.log("WARNING: Opacity value in rgba ignored.  Specify separately as opacity attribute.");
+                }
+                let ret = 0;
+                for(let i = 2; i < 5; i++) {
+                    ret *= 256;
+                    let val = m[i].endsWith("%") ? 255*parseFloat(m[i])/100 : parseFloat(m[i]);
+                    ret += Math.round(val);
+                }
+                return ret;
             }
+            return htmlColors[hex.toLowerCase()] || 0x000000;
+            
         }
         return hex;
     }
@@ -691,14 +705,21 @@ $3Dmol.builtinColorSchemes = {
         'ssPyMol' : {'prop':'ss', map:$3Dmol.ssColors.pyMol},
         'ssJmol' :{'prop':'ss', map:$3Dmol.ssColors.Jmol},
         'Jmol' :{'prop':'elem', map:$3Dmol.elementColors.Jmol},
-        'greenCarbon': {'prop': 'elem', map:$3Dmol.elementColors.greenCarbon},
-        'default' : {'prop': 'elem', map:$3Dmol.elementColors.defaultColors},
         'amino' : {'prop':'resn', map:$3Dmol.residues.amino},
         'shapely' :{'prop':'resn', map:$3Dmol.residues.shapely},
         'nucleic' :{'prop':'resn', map:$3Dmol.residues.nucleic},
         'chain' :{'prop':'chain', map:$3Dmol.chains.atom},
+        'rasmol' : {'prop':'elem', map:$3Dmol.elementColors.rasmol},
+        'default' : {'prop': 'elem', map:$3Dmol.elementColors.defaultColors},
+        'greenCarbon': {'prop': 'elem', map:$3Dmol.elementColors.greenCarbon},
         'chainHetatm' :{'prop':'chain', map:$3Dmol.chains.hetatm},
-        
+        'cyanCarbon' : {'prop':'elem', map:$3Dmol.elementColors.cyanCarbon},
+        'magentaCarbon' : {'prop':'elem', map:$3Dmol.elementColors.magentaCarbon},
+        'purpleCarbon' : {'prop':'elem', map:$3Dmol.elementColors.purpleCarbon},
+        'whiteCarbon' : {'prop':'elem', map:$3Dmol.elementColors.whiteCarbon},
+        'orangeCarbon' : {'prop':'elem', map:$3Dmol.elementColors.orangeCarbon},
+        'yellowCarbon' : {'prop':'elem', map:$3Dmol.elementColors.yellowCarbon},
+        'blueCaron' : {'prop':'elem', map:$3Dmol.elementColors.blueCarbon},
 };
 
 /** Return proper color for atom given style
