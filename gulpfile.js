@@ -46,6 +46,7 @@ function check() {
 		    'clearInterval': false,
 		    'Worker': false,
 		    'MMTF': false,
+		    'URLSearchParams': false,
 		    'TextDecoder': false,
 	            'define':false}}))
     .pipe(jshint.reporter('default'));
