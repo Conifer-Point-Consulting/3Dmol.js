@@ -300,8 +300,8 @@ $3Dmol.GLModel = (function() {
             else if (vdwRadii[atom.elem])
                 r = vdwRadii[atom.elem];
             else if(atom.elem.length > 1) { //see if adjusting case helps
-                let e = atom.elem;
-                e[1] = e[1].toLowerCase();
+                //****BFM Next.js doesn't like changing the internal characters of strings
+                const e = atom.elem[0] + atom.elem[1].toLowerCase();
                 if(vdwRadii[e]) r = vdwRadii[e];
             } 
 
@@ -510,10 +510,13 @@ $3Dmol.GLModel = (function() {
                 var j = atom.bonds[i]; // our neighbor
                 
                 var atom2 = atoms[j];
-                if (!atom2.style.line)
-                    continue; // don't sweat the details
+                //*****BFM bonding between different types leaves no bond displayed, better
+                //*****BFM to have something.  Lines (wireframe) overrides sticks.
+                // if (!atom2.style.line)
+                //    continue; // don't sweat the details
 
-                if (atom.index >= atom2.index) // only draw if less, this way we can do multi bonds correctly
+                //****BFM include style check, so inhomogeneous style cases get handled.
+                if (atom2.style.line && atom.index >= atom2.index) // only draw if less, this way we can do multi bonds correctly
                     continue;
                 var p1 = new $3Dmol.Vector3(atom.x, atom.y, atom.z);
                 var p2 = new $3Dmol.Vector3(atom2.x, atom2.y, atom2.z);                
@@ -538,7 +541,9 @@ $3Dmol.GLModel = (function() {
                     }
                 }
                 var c1 = $3Dmol.getColorFromStyle(atom, atom.style.line);
-                var c2 = $3Dmol.getColorFromStyle(atom2, atom2.style.line);
+                //****BFM line style might not be defined, so use something else.
+                var style2 = atom2.style.line || atom2.style.sticks || atom.style.line;
+                var c2 = $3Dmol.getColorFromStyle(atom2, style2);
                
                 if(atom.bondStyles && atom.bondStyles[i]) {
                     var bstyle = atom.bondStyles[i];
@@ -2241,6 +2246,10 @@ $3Dmol.GLModel = (function() {
                 var olda = newatoms[i];
                 var nindex = indexmap[olda.index];
                 var a = $3Dmol.extend({}, olda);
+                //*****BFM assign internalAtom
+                if (olda.internalAtom == null) {
+                    olda.internalAtom = a;
+                }
                 a.index = nindex;
                 a.bonds = [];
                 a.bondOrder = [];
