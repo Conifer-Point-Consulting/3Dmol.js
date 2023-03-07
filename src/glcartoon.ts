@@ -1152,7 +1152,8 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
 
                 // reached next residue (potentially the first residue)
                 if (curr === undefined || curr.rescode != next.rescode || curr.resi != next.resi) {
-                    if (baseEndPt) // draw last NA residue's base
+                    //****BFM curr may not be defined, so avoid this clause if not.
+                    if (curr && baseEndPt) // draw last NA residue's base
                     {
                         // start the cylinder at the midpoint between
                         // consecutive backbone atoms
@@ -1197,10 +1198,11 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
                     };
             }
             // atoms used to orient the backbone strand
+            //*****BFM curr may not be defined, so add checks
             else if (isAlphaCarbon(curr) && next.atom === "O" ||
-                inNucleicAcid && curr.atom === "P" &&
+                inNucleicAcid && curr?.atom === "P" &&
                 (next.atom === "OP2" || next.atom === "O2P") ||
-                inNucleicAcid && curr.atom.indexOf("O5") == 0 &&
+                inNucleicAcid && curr?.atom.indexOf("O5") == 0 &&
                 next.atom.indexOf("C5") == 0) {
                 orientPt = new Vector3(next.x, next.y, next.z);
                 orientPt.resi = next.resi;
