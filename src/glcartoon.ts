@@ -113,11 +113,11 @@ export function subdivide_spline(_points, DIV) { // points as Vector3
 };
 
 
-const coilWidth = 0.5;
-const helixSheetWidth = 1.3;
-const nucleicAcidWidth = 0.8;
-const defaultThickness = 0.4;
-const baseThickness    = 0.4;
+const coilWidth        = 0.1; //****BFM loop width. original 0.5
+const helixSheetWidth  = 0.8; //****BFM secondary structure width. original 1.3
+const nucleicAcidWidth = 1.2; //****BFM original 0.8
+const defaultThickness = 0.2; //****BFM ribbon thickness. original 0.4
+const baseThickness    = 0.2; //****BFM added NA base thickness. original = 0.4
 
 function drawThinStrip(geo: Geometry, p1, p2, colors) {
 
