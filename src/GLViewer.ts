@@ -3439,6 +3439,17 @@ export class GLViewer {
     };
 
 
+    //****BFM add model reset
+    // This removes the previously displayed 3D content, but not the model itself.
+    // This allows the model to be redisplayed on render()
+    public resetModel(model?:GLModel|number) {
+        model = this.getModel(model);
+        if (!model)
+            return;
+        model.removegl(this.modelGroup);
+        return this;
+    };
+
     /**
      * Delete specified model from viewer
      *
