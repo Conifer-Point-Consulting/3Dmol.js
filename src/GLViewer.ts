@@ -345,6 +345,13 @@ export class GLViewer {
                     selected.callback(selected, this._viewer, event, this.container);
                 }
             }
+        } else if (this.clickables.length > 0) {
+            //****BFM Send background click events
+            // invoke a clickable callback with null selection to signal background click
+            let callback = makeFunction(this.clickables[0].callback);
+            if (typeof callback === "function") {
+                callback(null, this._viewer, event, this.container);
+            }
         }
     };
 
