@@ -385,27 +385,27 @@ export class GLViewer {
     };
 
     //checks for selection intersects on hover
-    private handleHoverSelection(mouseX, mouseY) {
+    private handleHoverSelection(mouseX, mouseY, event?) {
         if (this.hoverables.length == 0) return;
         let intersects = this.targetedObjects(mouseX, mouseY, this.hoverables);
         if (intersects.length) {
             var selected = intersects[0].clickable;
-            this.setHover(selected);
+            this.setHover(selected, event);
             this.current_hover = selected;
         }
         else {
-            this.setHover(null);
+            this.setHover(null, event);
         }
     };
 
     //sees if the mouse is still on the object that invoked a hover event and if not then the unhover callback is called
-    private handleHoverContinue(mouseX: number, mouseY: number) {
+    private handleHoverContinue(mouseX: number, mouseY: number, event?) {
         let intersects = this.targetedObjects(mouseX, mouseY, this.hoverables);
         if (intersects.length == 0 || intersects[0] === undefined) {
-            this.setHover(null);
+            this.setHover(null, event);
         }
         if (intersects[0] !== undefined && intersects[0].clickable !== this.current_hover) {
-            this.setHover(null);
+            this.setHover(null, event);
         }
     };
 
@@ -1015,13 +1015,13 @@ export class GLViewer {
         let self = this;
         // hover timeout
         if (this.current_hover !== null) {
-            this.handleHoverContinue(mouseX, mouseY);
+            this.handleHoverContinue(mouseX, mouseY, ev);
         }
 
         if (this.hoverables.length > 0) {
             this.hoverTimeout = setTimeout(
                 function () {
-                    self.handleHoverSelection(mouseX, mouseY);
+                    self.handleHoverSelection(mouseX, mouseY, ev);
                 },
                 this.hoverDuration);
         }
