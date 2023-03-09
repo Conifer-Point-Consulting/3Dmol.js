@@ -928,6 +928,20 @@ export class GLViewer {
         this.isDragging = false;
     }
 
+    //****BFM capture zoom events
+    private _handleUserZoom(zoomDelta: number, event) {
+        if (this.clickables.length > 0) {
+            const newEvent = new CustomEvent('zoom', { detail: {
+                delta: zoomDelta,
+                ctrlKey: event?.ctrlKey,
+                shiftKey: event?.shiftKey,
+                altKey: event?.altKey,
+                sourceEvent: event,
+            }});
+            this.clickables[0].callback(null, this._viewer, newEvent, this.container);
+        }
+    }
+
     public _handleMouseScroll(ev) { // Zoom
         ev.preventDefault();
         if (!this.scene)
@@ -941,6 +955,7 @@ export class GLViewer {
             return;
         }
 
+        var oldZoom = this.rotationGroup.position.z; //****BFM capture zoom events
         var scaleFactor = (this.CAMERA_Z - this.rotationGroup.position.z) * 0.85;
         var mult = 1.0;
         if (ev.ctrlKey) {
@@ -952,6 +967,7 @@ export class GLViewer {
             this.rotationGroup.position.z -= mult * scaleFactor * ev.wheelDelta / 400;
         }
         this.rotationGroup.position.z = this.adjustZoomToLimits(this.rotationGroup.position.z);
+        this._handleUserZoom(this.rotationGroup.position.z - oldZoom, ev); //****BFM capture zoom events
         this.show();
     };
 
@@ -1101,11 +1117,16 @@ export class GLViewer {
             this.slabNear = this.cslabNear + dx * 100;
             this.slabFar = this.cslabFar - dy * 100;
         } else if (mode == 2 || this.mouseButton == 3 || ev.shiftKey) { // Zoom
+            var oldZoom = this.rotationGroup.position.z; //****BFM capture zoom events
             scaleFactor = (this.CAMERA_Z - this.rotationGroup.position.z) * 0.85;
             if (scaleFactor < 80)
                 scaleFactor = 80;
             this.rotationGroup.position.z = this.cz + dy * scaleFactor;
             this.rotationGroup.position.z = this.adjustZoomToLimits(this.rotationGroup.position.z);
+            //****BFM capture zoom events
+            if (Math.abs(this.rotationGroup.position.z - oldZoom) > .1) {
+                this._handleUserZoom(this.rotationGroup.position.z - oldZoom, ev);
+            }
         } else if (mode == 1 || this.mouseButton == 2 || ev.ctrlKey) { // Translate
             var t = this.screenOffsetToModel(ratioX * (x - this.mouseStartX), ratioY * (y - this.mouseStartY));
             this.modelGroup.position.addVectors(this.currentModelPos, t);
