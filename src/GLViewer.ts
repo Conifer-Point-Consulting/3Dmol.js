@@ -46,6 +46,7 @@ export class GLViewer {
     private contextMenuEnabledAtoms = []; // atoms with context menu
     private current_hover: any = null;
     private hoverDuration = 500;
+    private longPressDuration = 1000;
     private viewer_frame = 0;
     private WIDTH: number;
     private HEIGHT: number;
@@ -107,6 +108,7 @@ export class GLViewer {
 
     private mouseButton: any;
     private hoverTimeout: any;
+    private longPressTimeout: any;
 
     private divwatcher: any;
     private spinInterval: any;
@@ -905,19 +907,26 @@ export class GLViewer {
         this.cslabFar = this.slabFar;
 
         let self = this;
-        setTimeout(function () {
-            if (ev.targetTouches) {
+        if (ev.targetTouches && ev.targetTouches.length === 1) {
+            this.longPressTimeout = setTimeout(function () {
                 if (self.touchHold == true) {
                     // console.log('Touch hold', x,y);
                     self.glDOM = self.renderer.domElement;
-                    self.glDOM.dispatchEvent(new Event('contextmenu'));
+                    const touch = ev.targetTouches[0];
+                    const newEvent = new PointerEvent('contextmenu', {
+                        ...ev,
+                        pageX: touch.pageX, pageY: touch.pageY,
+                        screenX: touch.screenX, screenY: touch.screenY,
+                        clientX: touch.clientX, clientY: touch.clientY,
+                    });
+                    self.glDOM.dispatchEvent(newEvent);
                 }
                 else {
                     // console.log('Touch hold ended earlier');
 
                 }
-            }
-        }, 1000);
+            }, this.longPressDuration);
+        }
 
     };
 
@@ -1103,6 +1112,11 @@ export class GLViewer {
             return;
         }
 
+        // Cancel long press timer to avoid invoking context menu if dragged away from start
+        if (ev.targetTouches && (ev.targetTouches.length > 1 ||
+            (ev.targetTouches.length === 1 && !this.closeEnoughForClick(ev)))) {
+            clearTimeout(this.longPressTimeout);
+        }
 
         var dx = (x - this.mouseStartX) / this.WIDTH;
         var dy = (y - this.mouseStartY) / this.HEIGHT;
@@ -1167,9 +1181,9 @@ export class GLViewer {
         var newX = this.getX(ev);
         var newY = this.getY(ev);
 
-        if (newX != this.mouseStartX || newY != this.mouseStartY) {
-            return;
-        } else {
+        // contextmenu event is synthetic (not trusted) if it is in response to a long touch,
+        // so we should allow wiggle room when checking the position.
+        if (this.closeEnoughForClick(ev, { allowWiggleRoom: !ev.isTrusted })) {
             var x = this.mouseStartX;
             var y = this.mouseStartY;
             var offset = this.canvasOffset();
@@ -1186,6 +1200,8 @@ export class GLViewer {
             var y = this.mouseStartY - offset.top;
             if (this.userContextMenuHandler) {
                 this.userContextMenuHandler(selected, x, y,);
+                // We've processed this as a context menu evt; ignore further mouseup evts.
+                this.isDragging = false;
             }
         }
     };
