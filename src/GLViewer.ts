@@ -46,7 +46,7 @@ export class GLViewer {
     private contextMenuEnabledAtoms = []; // atoms with context menu
     private current_hover: any = null;
     private hoverDuration = 500;
-    private longPressDuration = 1000;
+    private longTouchDuration = 1000;
     private viewer_frame = 0;
     private WIDTH: number;
     private HEIGHT: number;
@@ -108,7 +108,7 @@ export class GLViewer {
 
     private mouseButton: any;
     private hoverTimeout: any;
-    private longPressTimeout: any;
+    private longTouchTimeout: any;
 
     private divwatcher: any;
     private spinInterval: any;
@@ -349,7 +349,7 @@ export class GLViewer {
                 if (typeof (selected.callback) === "function") {
                     // Suppress click callbacks when context menu will be invoked.
                     // This only applies to clicks from "mouseup" events after right-click.
-                    // Clicks from "touchend" after long-touch contextmenu are suppressed
+                    // Clicks from "touchend" after longtouch contextmenu are suppressed
                     // in _handleContextMenu.
                     const isContextMenu = this.mouseButton === 3
                         && this.contextMenuEnabledAtoms.includes(selected)
@@ -920,7 +920,7 @@ export class GLViewer {
 
         let self = this;
         if (ev.targetTouches && ev.targetTouches.length === 1) {
-            this.longPressTimeout = setTimeout(function () {
+            this.longTouchTimeout = setTimeout(function () {
                 if (self.touchHold == true) {
                     // console.log('Touch hold', x,y);
                     self.glDOM = self.renderer.domElement;
@@ -937,7 +937,7 @@ export class GLViewer {
                     // console.log('Touch hold ended earlier');
 
                 }
-            }, this.longPressDuration);
+            }, this.longTouchDuration);
         }
 
     };
@@ -1124,10 +1124,10 @@ export class GLViewer {
             return;
         }
 
-        // Cancel long press timer to avoid invoking context menu if dragged away from start
+        // Cancel longtouch timer to avoid invoking context menu if dragged away from start
         if (ev.targetTouches && (ev.targetTouches.length > 1 ||
             (ev.targetTouches.length === 1 && !this.closeEnoughForClick(ev)))) {
-            clearTimeout(this.longPressTimeout);
+            clearTimeout(this.longTouchTimeout);
         }
 
         var dx = (x - this.mouseStartX) / this.WIDTH;
@@ -1193,7 +1193,7 @@ export class GLViewer {
         var newX = this.getX(ev);
         var newY = this.getY(ev);
 
-        // contextmenu event is synthetic (not trusted) if it is in response to a long touch,
+        // contextmenu event is synthetic (not trusted) if it is in response to a longtouch,
         // so we should allow wiggle room when checking the position.
         if (this.closeEnoughForClick(ev, { allowWiggleRoom: !ev.isTrusted })) {
             var x = this.mouseStartX;
@@ -1212,7 +1212,9 @@ export class GLViewer {
             var y = this.mouseStartY - offset.top;
             if (this.userContextMenuHandler) {
                 this.userContextMenuHandler(selected, x, y, ev);
-                // We've processed this as a context menu evt; ignore further mouseup evts.
+                // We've processed this as a context menu evt; ignore further click evts.
+                // This is for touchend after longtouch, since the mouseup for right-click
+                // occurs before the contextmenu evt.
                 this.isDragging = false;
             }
         }
