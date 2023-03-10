@@ -113,10 +113,11 @@ export function subdivide_spline(_points, DIV) { // points as Vector3
 };
 
 
-const coilWidth = 0.5;
-const helixSheetWidth = 1.3;
-const nucleicAcidWidth = 0.8;
-const defaultThickness = 0.4;
+const coilWidth        = 0.1; //****BFM loop width. original 0.5
+const helixSheetWidth  = 0.8; //****BFM secondary structure width. original 1.3
+const nucleicAcidWidth = 1.2; //****BFM original 0.8
+const defaultThickness = 0.2; //****BFM ribbon thickness. original 0.4
+const baseThickness    = 0.2; //****BFM added NA base thickness. original = 0.4
 
 function drawThinStrip(geo: Geometry, p1, p2, colors) {
 
@@ -1126,7 +1127,7 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
                                 curr.y, curr.z);
 
                         GLDraw.drawCylinder(shapeGeo, baseStartPt,
-                            baseEndPt, 0.4, CC
+                            baseEndPt, baseThickness, CC
                                 .color(baseEndPt.color), 0, 2);
                         addBackbonePoints(points, num,
                             true, terminalPt, termOrientPt,
@@ -1151,7 +1152,8 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
 
                 // reached next residue (potentially the first residue)
                 if (curr === undefined || curr.rescode != next.rescode || curr.resi != next.resi) {
-                    if (baseEndPt) // draw last NA residue's base
+                    //****BFM curr may not be defined, so avoid this clause if not.
+                    if (curr && baseEndPt) // draw last NA residue's base
                     {
                         // start the cylinder at the midpoint between
                         // consecutive backbone atoms
@@ -1164,7 +1166,7 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
                         baseStartPt.add(startFix);
 
                         GLDraw.drawCylinder(shapeGeo, baseStartPt,
-                            baseEndPt, 0.4, CC
+                            baseEndPt, baseThickness, CC
                                 .color(baseEndPt.color), 0, 2);
                         baseStartPt = null;
                         baseEndPt = null;
@@ -1196,10 +1198,11 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
                     };
             }
             // atoms used to orient the backbone strand
+            //*****BFM curr may not be defined, so add checks
             else if (isAlphaCarbon(curr) && next.atom === "O" ||
-                inNucleicAcid && curr.atom === "P" &&
+                inNucleicAcid && curr?.atom === "P" &&
                 (next.atom === "OP2" || next.atom === "O2P") ||
-                inNucleicAcid && curr.atom.indexOf("O5") == 0 &&
+                inNucleicAcid && curr?.atom.indexOf("O5") == 0 &&
                 next.atom.indexOf("C5") == 0) {
                 orientPt = new Vector3(next.x, next.y, next.z);
                 orientPt.resi = next.resi;
@@ -1247,7 +1250,7 @@ export function drawCartoon(group, atomList, gradientrange, quality = 10) {
         else
             baseStartPt = new Vector3(curr.x, curr.y, curr.z);
 
-        GLDraw.drawCylinder(shapeGeo, baseStartPt, baseEndPt, 0.4,
+        GLDraw.drawCylinder(shapeGeo, baseStartPt, baseEndPt, baseThickness,
             CC.color(baseEndPt.color), 0, 2);
         addBackbonePoints(points, num, true, terminalPt,
             termOrientPt, prevOrientPt, curr, atoms, a);

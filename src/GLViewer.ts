@@ -45,6 +45,7 @@ export class GLViewer {
     private contextMenuEnabledAtoms = []; // atoms with context menu
     private current_hover: any = null;
     private hoverDuration = 500;
+    private longPressDuration = 1000;
     private viewer_frame = 0;
     private WIDTH: number;
     private HEIGHT: number;
@@ -106,6 +107,7 @@ export class GLViewer {
 
     private mouseButton: any;
     private hoverTimeout: any;
+    private longPressTimeout: any;
 
     private divwatcher: any;
     private spinInterval: any;
@@ -327,6 +329,9 @@ export class GLViewer {
             if (shape && shape.hoverable) {
                 this.hoverables.push(shape);
             }
+            if (shape && shape.contextMenuEnabled) {
+                this.contextMenuEnabledAtoms.push(shape);
+            }
         }
     };
 
@@ -343,6 +348,13 @@ export class GLViewer {
                 if (typeof (selected.callback) === "function") {
                     selected.callback(selected, this._viewer, event, this.container);
                 }
+            }
+        } else if (this.clickables.length > 0) {
+            //****BFM Send background click events
+            // invoke a clickable callback with null selection to signal background click
+            let callback = makeFunction(this.clickables[0].callback);
+            if (typeof callback === "function") {
+                callback(null, this._viewer, event, this.container);
             }
         }
     };
@@ -384,29 +396,41 @@ export class GLViewer {
     };
 
     //checks for selection intersects on hover
-    private handleHoverSelection(mouseX, mouseY) {
+    private handleHoverSelection(mouseX, mouseY, event?) {
         if (this.hoverables.length == 0) return;
         let intersects = this.targetedObjects(mouseX, mouseY, this.hoverables);
         if (intersects.length) {
             var selected = intersects[0].clickable;
-            this.setHover(selected);
+            this.setHover(selected, event);
             this.current_hover = selected;
         }
         else {
-            this.setHover(null);
+            this.setHover(null, event);
         }
     };
 
     //sees if the mouse is still on the object that invoked a hover event and if not then the unhover callback is called
-    private handleHoverContinue(mouseX: number, mouseY: number) {
+    private handleHoverContinue(mouseX: number, mouseY: number, event?) {
         let intersects = this.targetedObjects(mouseX, mouseY, this.hoverables);
         if (intersects.length == 0 || intersects[0] === undefined) {
-            this.setHover(null);
+            this.setHover(null, event);
         }
         if (intersects[0] !== undefined && intersects[0].clickable !== this.current_hover) {
-            this.setHover(null);
+            this.setHover(null, event);
         }
     };
+
+    // Determine if a positioned event is "close enough" to be considered a click event
+    // With a mouse the position should be exact.
+    // But allow some wiggle room when using touch interface.
+    private closeEnoughForClick(event, { allowWiggleRoom=null, tolerance=5}={}) {
+        var deltaX = Math.abs(this.getX(event) - this.mouseStartX);
+        var deltaY = Math.abs(this.getY(event) - this.mouseStartY);
+        let allowingWiggling = event.targetTouches;
+        if (allowWiggleRoom != null) allowingWiggling = allowWiggleRoom;
+        const toleranceToUse = allowingWiggling ? tolerance : 0;
+        return (deltaX <= toleranceToUse && deltaY <= toleranceToUse);
+    }
 
     private calcTouchDistance(ev) { // distance between first two
         // fingers
@@ -620,6 +644,32 @@ export class GLViewer {
     };
 
     /**
+     * @description Modify a list of intersection objects beyond the raycaster's distance sort.
+     * Initially, this just sorts clickspheres to the end.
+     * @param {Array<{clickable: any, distance: number}>} intersectsIn
+     *
+     * Use case:
+     * We'd like an interactive cloud (surface) around some atoms, but don't want to see the atoms.
+     * To make the cloud mouse-interactive, the atoms are given a clicksphere style.
+     * Give intersection priority to shapes and visible atoms so that when mousing over a compound
+     * inside a cloud, the interaction is with the compound, not the cloud.
+     */
+    private filterIntersects(intersectsIn: { clickable, distance: number }[]) {
+        const intersects = [...intersectsIn];
+        intersects.sort((a,b) => {
+            const isClickSphere = (x) => !!(x?.style?.clicksphere);
+            const aClickSphere = isClickSphere(a.clickable);
+            const bClickSphere = isClickSphere(b.clickable);
+            if (aClickSphere === bClickSphere) {
+                return 0; // keep the original order
+            } else {
+                return aClickSphere ? 1 : -1;
+            }
+        });
+        return intersects;
+    }
+
+    /**
     * Return a list of objects that intersect that at the specified viewer position.
     *
     * @param x - x position in screen coordinates
@@ -637,7 +687,7 @@ export class GLViewer {
         }
         if (objects.length == 0) return [];
         this.raycaster.setFromCamera(mouse, this.camera);
-        return this.raycaster.intersectObjects(this.modelGroup, objects);
+        return this.filterIntersects(this.raycaster.intersectObjects(this.modelGroup, objects));
     };
 
     /** Convert model coordinates to screen coordinates.
@@ -859,19 +909,26 @@ export class GLViewer {
         this.cslabFar = this.slabFar;
 
         let self = this;
-        setTimeout(function () {
-            if (ev.targetTouches) {
+        if (ev.targetTouches && ev.targetTouches.length === 1) {
+            this.longPressTimeout = setTimeout(function () {
                 if (self.touchHold == true) {
                     // console.log('Touch hold', x,y);
                     self.glDOM = self.renderer.domElement;
-                    self.glDOM.dispatchEvent(new Event('contextmenu'));
+                    const touch = ev.targetTouches[0];
+                    const newEvent = new PointerEvent('contextmenu', {
+                        ...ev,
+                        pageX: touch.pageX, pageY: touch.pageY,
+                        screenX: touch.screenX, screenY: touch.screenY,
+                        clientX: touch.clientX, clientY: touch.clientY,
+                    });
+                    self.glDOM.dispatchEvent(newEvent);
                 }
                 else {
                     // console.log('Touch hold ended earlier');
 
                 }
-            }
-        }, 1000);
+            }, this.longPressDuration);
+        }
 
     };
 
@@ -883,7 +940,7 @@ export class GLViewer {
         if (this.isDragging && this.scene) { //saw mousedown, haven't moved
             var x = this.getX(ev);
             var y = this.getY(ev);
-            if (x == this.mouseStartX && y == this.mouseStartY) {
+            if (this.closeEnoughForClick(ev)) {
                 var offset = this.canvasOffset();
                 var mouseX = ((x - offset.left) / this.WIDTH) * 2 - 1;
                 var mouseY = -((y - offset.top) / this.HEIGHT) * 2 + 1;
@@ -892,6 +949,20 @@ export class GLViewer {
         }
 
         this.isDragging = false;
+    }
+
+    //****BFM capture zoom events
+    private _handleUserZoom(zoomDelta: number, event) {
+        if (this.clickables.length > 0) {
+            const newEvent = new CustomEvent('zoom', { detail: {
+                delta: zoomDelta,
+                ctrlKey: event?.ctrlKey,
+                shiftKey: event?.shiftKey,
+                altKey: event?.altKey,
+                sourceEvent: event,
+            }});
+            this.clickables[0].callback(null, this._viewer, newEvent, this.container);
+        }
     }
 
     public _handleMouseScroll(ev) { // Zoom
@@ -907,6 +978,7 @@ export class GLViewer {
             return;
         }
 
+        var oldZoom = this.rotationGroup.position.z; //****BFM capture zoom events
         var scaleFactor = (this.CAMERA_Z - this.rotationGroup.position.z) * 0.85;
         var mult = 1.0;
         if (ev.ctrlKey) {
@@ -918,6 +990,7 @@ export class GLViewer {
             this.rotationGroup.position.z -= mult * scaleFactor * ev.wheelDelta / 400;
         }
         this.rotationGroup.position.z = this.adjustZoomToLimits(this.rotationGroup.position.z);
+        this._handleUserZoom(this.rotationGroup.position.z - oldZoom, ev); //****BFM capture zoom events
         this.show();
     };
 
@@ -1014,13 +1087,13 @@ export class GLViewer {
         let self = this;
         // hover timeout
         if (this.current_hover !== null) {
-            this.handleHoverContinue(mouseX, mouseY);
+            this.handleHoverContinue(mouseX, mouseY, ev);
         }
 
         if (this.hoverables.length > 0) {
             this.hoverTimeout = setTimeout(
                 function () {
-                    self.handleHoverSelection(mouseX, mouseY);
+                    self.handleHoverSelection(mouseX, mouseY, ev);
                 },
                 this.hoverDuration);
         }
@@ -1041,6 +1114,11 @@ export class GLViewer {
             return;
         }
 
+        // Cancel long press timer to avoid invoking context menu if dragged away from start
+        if (ev.targetTouches && (ev.targetTouches.length > 1 ||
+            (ev.targetTouches.length === 1 && !this.closeEnoughForClick(ev)))) {
+            clearTimeout(this.longPressTimeout);
+        }
 
         var dx = (x - this.mouseStartX) / this.WIDTH;
         var dy = (y - this.mouseStartY) / this.HEIGHT;
@@ -1067,11 +1145,16 @@ export class GLViewer {
             this.slabNear = this.cslabNear + dx * 100;
             this.slabFar = this.cslabFar - dy * 100;
         } else if (mode == 2 || this.mouseButton == 3 || ev.shiftKey) { // Zoom
+            var oldZoom = this.rotationGroup.position.z; //****BFM capture zoom events
             scaleFactor = (this.CAMERA_Z - this.rotationGroup.position.z) * 0.85;
             if (scaleFactor < 80)
                 scaleFactor = 80;
             this.rotationGroup.position.z = this.cz + dy * scaleFactor;
             this.rotationGroup.position.z = this.adjustZoomToLimits(this.rotationGroup.position.z);
+            //****BFM capture zoom events
+            if (Math.abs(this.rotationGroup.position.z - oldZoom) > .1) {
+                this._handleUserZoom(this.rotationGroup.position.z - oldZoom, ev);
+            }
         } else if (mode == 1 || this.mouseButton == 2 || ev.ctrlKey) { // Translate
             var t = this.screenOffsetToModel(ratioX * (x - this.mouseStartX), ratioY * (y - this.mouseStartY));
             this.modelGroup.position.addVectors(this.currentModelPos, t);
@@ -1100,9 +1183,9 @@ export class GLViewer {
         var newX = this.getX(ev);
         var newY = this.getY(ev);
 
-        if (newX != this.mouseStartX || newY != this.mouseStartY) {
-            return;
-        } else {
+        // contextmenu event is synthetic (not trusted) if it is in response to a long touch,
+        // so we should allow wiggle room when checking the position.
+        if (this.closeEnoughForClick(ev, { allowWiggleRoom: !ev.isTrusted })) {
             var x = this.mouseStartX;
             var y = this.mouseStartY;
             var offset = this.canvasOffset();
@@ -1119,6 +1202,8 @@ export class GLViewer {
             var y = this.mouseStartY - offset.top;
             if (this.userContextMenuHandler) {
                 this.userContextMenuHandler(selected, x, y,);
+                // We've processed this as a context menu evt; ignore further mouseup evts.
+                this.isDragging = false;
             }
         }
     };
@@ -3440,6 +3525,17 @@ export class GLViewer {
         return m;
     };
 
+
+    //****BFM add model reset
+    // This removes the previously displayed 3D content, but not the model itself.
+    // This allows the model to be redisplayed on render()
+    public resetModel(model?:GLModel|number) {
+        model = this.getModel(model);
+        if (!model)
+            return;
+        model.removegl(this.modelGroup);
+        return this;
+    };
 
     /**
      * Delete specified model from viewer
