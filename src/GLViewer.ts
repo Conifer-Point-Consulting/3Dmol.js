@@ -1202,7 +1202,7 @@ export class GLViewer {
             var x = this.mouseStartX - offset.left;
             var y = this.mouseStartY - offset.top;
             if (this.userContextMenuHandler) {
-                this.userContextMenuHandler(selected, x, y,);
+                this.userContextMenuHandler(selected, x, y, ev);
                 // We've processed this as a context menu evt; ignore further mouseup evts.
                 this.isDragging = false;
             }
