@@ -653,30 +653,48 @@ export class GLViewer {
 
     };
 
+    //*****BFM
     /**
-     * @description Modify a list of intersection objects beyond the raycaster's distance sort.
-     * Initially, this just sorts clickspheres to the end.
-     * @param {Array<{clickable: any, distance: number}>} intersectsIn
-     *
-     * Use case:
-     * We'd like an interactive cloud (surface) around some atoms, but don't want to see the atoms.
-     * To make the cloud mouse-interactive, the atoms are given a clicksphere style.
-     * Give intersection priority to shapes and visible atoms so that when mousing over a compound
-     * inside a cloud, the interaction is with the compound, not the cloud.
+     * @description Filter a list of intersection objects to include only
+     * the mouseable ones. Mouseable intersection objects are either:
+     * 1) A shape (not an atom)
+     * 2) A visible atom
+     * 3) A 'clicksphere' atom, if there are no other shapes or visible atoms
+     * Clicksphere atoms are used by bmaps for the hotspot fragment atoms;
+     * they are not visible, but they are mouse-interactive.
+     * Priority is given to visible atoms so that when mousing over a compound
+     * inside a hotspot the interaction is with the compound, not the hotspot.
      */
     private filterIntersects(intersectsIn: { clickable, distance: number }[]) {
         const intersects = [...intersectsIn];
-        intersects.sort((a,b) => {
-            const isClickSphere = (x) => !!(x?.style?.clicksphere);
-            const aClickSphere = isClickSphere(a.clickable);
-            const bClickSphere = isClickSphere(b.clickable);
-            if (aClickSphere === bClickSphere) {
-                return 0; // keep the original order
+        var intIsVisible = function(int) {
+            return !int.clickable.atom // Shape case
+                || int.clickable.style.line || int.clickable.style.cross || int.clickable.style.stick
+                || int.clickable.style.sphere || int.clickable.style.cartoon;
+        };
+        var intIsClickSphere = function(int) {
+            return int.clickable.style.clicksphere;
+        };
+
+        var allowingClickSphere = true;
+        var haveClickSpheres = false;
+        return intersects.reduce( function (result, int) {
+            if (intIsVisible(int)) {
+                // If we encounter a visible intersect, reject future clickspheres,
+                // and remove any existing clickspheres
+                allowingClickSphere = false;
+                if (haveClickSpheres) {
+                    result = result.filter(intIsVisible);
+                    haveClickSpheres = false;
+                }
+                return result.concat(int);
+            } else if (allowingClickSphere && intIsClickSphere(int)) {
+                haveClickSpheres = true;
+                return result.concat(int);
             } else {
-                return aClickSphere ? 1 : -1;
+                return result;
             }
-        });
-        return intersects;
+        }, []);
     }
 
     /**
@@ -697,6 +715,7 @@ export class GLViewer {
         }
         if (objects.length == 0) return [];
         this.raycaster.setFromCamera(mouse, this.camera);
+        //*****BFM
         return this.filterIntersects(this.raycaster.intersectObjects(this.modelGroup, objects));
     };
 
